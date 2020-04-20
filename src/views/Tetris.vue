@@ -9,10 +9,12 @@
 </template>
 
 <script lang="ts">
+
 import Vue from 'vue';
 import { Component } from 'vue-property-decorator';
 import Board from '@/components/Board.vue';
 import MyBlock from '@/components/MyBlock.vue';
+import Hammer from 'hammerjs';
 
 const maxBgY = 16;
 const maxBgX = 10;
@@ -183,6 +185,14 @@ const myblocks = [
   ]
 ];
 
+enum KeyCode {
+  SPACE = 32,
+  LEFT = 37,
+  UP = 38,
+  RIGHT = 39,
+  DOWN = 40,
+}
+
 function getRandomInt(min: number, max: number) {
   min = Math.ceil(min);
   max = Math.floor(max);
@@ -208,6 +218,8 @@ export default class Tetris extends Vue {
   private curBlockX = 0;
   private curBlockY = -maxMyY;
   private curSpeed = 500;
+
+  private mc!: HammerManager;
 
   private startGame() {
     this.clearBg();
@@ -286,9 +298,6 @@ export default class Tetris extends Vue {
     for (let y = 0; y < maxBgY; y++) {
       this.bgBlock[y] = new Array(maxBgX);
       this.bgBlock[y].fill(bgColor, 0, maxBgX);
-      // for (let x = 0; x < maxBgX; x++) {
-      //   this.bgBlock[y][x] = bgColor;
-      // }
     }
 
     this.bgBlockString = JSON.stringify(this.bgBlock);
@@ -314,6 +323,15 @@ export default class Tetris extends Vue {
   }
 
   protected mounted() {
+    
+    const mc = new Hammer(this.$el as HTMLElement);
+    mc.get('swipe').set({ direction: Hammer.DIRECTION_VERTICAL });
+
+    mc.on('swipeup', this.handleSwipeUp);
+    mc.on('swipedown', this.handleSwipeDown);
+    mc.on('tap', this.handleTap);
+    this.mc = mc;
+
     this.startGame();
     document.addEventListener('keydown', this.handleKeyPress, false);
   }
@@ -345,33 +363,55 @@ export default class Tetris extends Vue {
     return false;
   }
 
+  protected handleSwipeUp() {
+    this.handleKeyPress({
+      keyCode: KeyCode.UP
+    } as KeyboardEvent);
+  }
+
+  protected handleSwipeDown() {
+    this.handleKeyPress({
+      keyCode: KeyCode.SPACE
+    } as KeyboardEvent);
+  }
+
+  protected handleTap(e: HammerInput) {
+    if (e.center.x > 320/2) {
+      this.handleKeyPress({
+        keyCode: KeyCode.RIGHT
+      } as KeyboardEvent);
+    } else {
+      this.handleKeyPress({
+        keyCode: KeyCode.LEFT
+      } as KeyboardEvent);
+    }
+  }
+
   protected handleKeyPress(e: KeyboardEvent) {
-    console.log(e.keyCode);
     switch (e.keyCode) {
-      case 40: /* bottom */
+      case KeyCode.DOWN:
       case 32: /* space */
         // 아래로 빠르게 떨어뜨림
         this.curSpeed = 10;
         this.timer.clear && this.timer.clear();
         break;
-      case 37: /* left */
+      case KeyCode.LEFT:
         if (!this.checkCollision(this.curBlockX - 1, this.curBlockY, this.curBlockDirection)) {
           this.curBlockX--;
         }
         break;
-      case 38: /* top */
+      case KeyCode.UP:
         // 방향전환
         if (!this.checkCollision(this.curBlockX, this.curBlockY, this.getNextDirection(this.curBlockDirection))) {
           this.nextDirection();
         }
         break;
-      case 39: /* right */
+      case KeyCode.RIGHT:
         if (!this.checkCollision(this.curBlockX + 1, this.curBlockY, this.curBlockDirection)) {
           this.curBlockX++;
         }
         break;
     }
-    console.log('move: ', this.curBlockX, this.curBlockY);
   }
 
   protected setMyBlockInBgAndCheckGameOver() {
@@ -396,6 +436,9 @@ export default class Tetris extends Vue {
 
   protected beforeDestroy() {
     document.removeEventListener('keydown', this.handleKeyPress, false);
+    this.mc.off('swipeup', this.handleSwipeUp);
+    this.mc.off('swipedown', this.handleSwipeDown);
+    this.mc.off('tap', this.handleTap);
   }
 }
 </script>
